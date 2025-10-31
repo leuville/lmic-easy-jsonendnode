@@ -13,7 +13,7 @@
 #include <ISRTimer.h>
 #include <ISRWrapper.h>
 #include <JobRegister.h>
-#include <energy.h>
+#include <EnergyController.h>
 
 namespace lstl = leuville::simple_template_library;
 namespace lora = leuville::lora;
@@ -33,9 +33,6 @@ USBPrinter<Serial_> console(LMIC_PRINTF_TO);
  * ---------------------------------------------------------------------------------------
  */
 
-constexpr uint32_t _24h = 24 * 60 * 60;
-constexpr uint32_t _7d = 7 * _24h;
-
 /*
  * LoraWan endnode with:
  * - a timer to trigger a PING message on a regular basis
@@ -44,13 +41,21 @@ constexpr uint32_t _7d = 7 * _24h;
  */
 using Base = JsonEndnode;
 using Button1 = ISRWrapper<DEVICE_BUTTON1_PIN>;
+using EnergyCtrl = EnergyController<VOLTAGE_MIN,VOLTAGE_MAX>;
 
 class EndNode : public Base, 
 				private ISRTimer, 
-				private Button1
+				private Button1,
+				private EnergyCtrl
 {
-
-	EnergyController<BATTPIN,BATTDIV,VOLTAGE_MIN,VOLTAGE_MAX> _energyCtrl;
+	/*
+	 * Redefines EnergyController::defineGetVoltage()
+	 */
+	#if defined(ARDUINO_SAMD_FEATHER_M0) || defined(ADAFRUIT_FEATHER_M0)
+	virtual std::function<double(void)> defineGetVoltage() override {
+		return []() -> double { return analogRead(A7) * 2 * 3.3 / 1.023; };
+	}
+	#endif
 
 	/*
 	 * Jobs for LMIC event callbacks
@@ -84,22 +89,16 @@ public:
 	/*
 	 * delegates begin() to each sub-component and join
 	 *
-	 * ORDER is important
-	 * If LMIC_USE_INTERRUPTS is enabled, LMIC must be initialized after other interruptions
-	 * 
 	 * Do not forget Wire.begin() if I2C devices connected
 	 */
 	virtual void begin(const OTAAId& id, u4_t network, bool adr = true) override {
 		Wire.begin();
-
-		_energyCtrl.setUnusedPins({A1, A2, A3, A4, A5});
-
+		EnergyCtrl::begin();
+		setUnusedPins({A1, A2, A3, A4, A5});
+		Base::begin(id, network, adr);
 		Button1::begin();
 		ISRTimer::begin(); 
-		ISRTimer::enable();
-		Button1::enable();
 
-		Base::begin(id, network, adr);
 		startJoining();
 	}
 
@@ -137,10 +136,14 @@ public:
 	virtual void joined(bool ok) override {
 		if (ok) {
 			setCallback(_callbacks[JOIN]);
+			Button1::enable();
+			ISRTimer::enable();
 		} else {
 			for (auto & job : _callbacks) {
 				unsetCallback(job);
 			}
+			Button1::disable();
+			ISRTimer::disable();
 		}
 	}
 
@@ -158,6 +161,14 @@ public:
 		console.println(":", rtc.getSeconds());
 		console.println("----------------------------------------------------------");
     	#endif
+	}
+	virtual bool isSystemTimeSynced() override {
+    	#if defined(LMIC_DEBUG_LEVEL) && LMIC_DEBUG_LEVEL > 0
+		console.println("----------------------------------------------------------");
+		console.println("system time age=", systemTimeAge()); 
+		console.println("----------------------------------------------------------");
+		#endif
+		return systemTimeAge() < SYSTEM_TIME_MAX_AGE;
 	}
 	#endif
 
@@ -186,7 +197,7 @@ public:
 	virtual void buttonJob() {
 		const char* format = "CLICK %d";
 		char msg[80];
-		sprintf(msg, format, _energyCtrl.getBatteryPower());
+		sprintf(msg, format, getBatteryPower());
 		send(msg, true);
 	}
 
@@ -201,11 +212,11 @@ public:
 	 * Build and send Uplink message
 	 */
 	virtual void send(String msg, bool ack = false) {
-		auto batt = _energyCtrl.getBatteryPower();
+		auto batt = getBatteryPower();
 		setBatteryLevel(batt);
 		JsonDocument doc;
 		doc["count"]        = _count++;
-		doc["battery"]      = batt;
+		doc["battery"]      = batt.value;
 		doc["data"]         = msg;
 		JsonEndnode::send(doc, ack);
 

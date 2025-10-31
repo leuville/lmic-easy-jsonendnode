@@ -81,16 +81,6 @@ void configureNetwork(Network netid, bool adr = true) {
 		case Network::ORANGE:		
 			if (!adr) {
 				LMIC_setDrTxpow(EU868_DR_SF12, 20);
-				/*
-				LMIC_setupChannel(0, 	868100000, DR_RANGE_MAP(DR_SF12, DR_SF7), 	BAND_CENTI); 	// LC1
-				LMIC_setupChannel(1, 	868300000, DR_RANGE_MAP(DR_SF12, DR_SF7B), 	BAND_CENTI); 	// LC2
-				LMIC_setupChannel(2, 	868500000, DR_RANGE_MAP(DR_SF12, DR_SF7), 	BAND_CENTI); 	// LC3
-				LMIC_setupChannel(3, 	866700000, DR_RANGE_MAP(DR_SF12, DR_SF7), 	BAND_CENTI); 	// LC4
-				LMIC_setupChannel(4, 	867100000, DR_RANGE_MAP(DR_SF12, DR_SF7), 	BAND_CENTI); 	// LC5
-				LMIC_setupChannel(5, 	867300000, DR_RANGE_MAP(DR_SF12, DR_SF7), 	BAND_CENTI); 	// LC6
-				LMIC_setupChannel(6, 	867700000, DR_RANGE_MAP(DR_SF12, DR_SF7), 	BAND_CENTI); 	// LC7
-				LMIC_setupChannel(7, 	867900000, DR_RANGE_MAP(DR_SF12, DR_SF7), 	BAND_CENTI); 	// LC8
-				*/
 				LMIC_setupChannel(8, 	865500000, DR_RANGE_MAP(DR_SF12, DR_SF7), 	BAND_MILLI); 	// LC9
 				LMIC_setupChannel(9, 	865700000, DR_RANGE_MAP(DR_SF12, DR_SF7), 	BAND_MILLI); 	// LC10
 				LMIC_setupChannel(10, 	865900000, DR_RANGE_MAP(DR_SF12, DR_SF7), 	BAND_MILLI); 	// LC11
